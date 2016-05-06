@@ -3,11 +3,13 @@
 
 """ Implements a Hidden Alignment Conditional Random Field (HACRF). """
 
+from __future__ import absolute_import
 import numpy as np
 import lbfgs
 from .algorithms import forward, backward
 from .algorithms import forward_predict, forward_max_predict
 from .algorithms import gradient, gradient_sparse, populate_sparse_features, sparse_multiply
+from . import adjacent
 from .state_machine import DefaultStateMachine
 
 
@@ -47,19 +49,23 @@ class Hacrf(object):
                  l2_regularization=0.0,
                  optimizer=None,
                  optimizer_kwargs=None,
-                 state_machine=None,
-                 viterbi=False):
+                 state_machine=None):
         self.parameters = None
         self.classes = None
         self.l2_regularization = l2_regularization
         self._optimizer = optimizer
         self._optimizer_kwargs = optimizer_kwargs
-        self.viterbi = viterbi
 
         self._optimizer_result = None
         self._state_machine = state_machine
         self._states_to_classes = None
         self._evaluation_count = None
+
+        if (state_machine is None or
+            isinstance(state_machine, DefaultStateMachine)):
+            self._Model = _AdjacentModel
+        else:
+            self._Model = _GeneralModel
 
     def fit(self, X, y, verbosity=0):
         """Fit the model according to the given training data.
@@ -91,7 +97,7 @@ class Hacrf(object):
         self.parameters = self._initialize_parameters(self._state_machine, X[0].shape[2])
 
         # Create a new model object for each training example
-        models = [_Model(self._state_machine, x, ty) for x, ty in zip(X, y)]
+        models = [self._Model(self._state_machine, x, ty) for x, ty in zip(X, y)]
 
         self._evaluation_count = 0
 
@@ -159,7 +165,7 @@ class Hacrf(object):
         
         parameters = np.ascontiguousarray(self.parameters.T)
 
-        predictions = [_Model(self._state_machine, x).predict(parameters, self.viterbi)
+        predictions = [self._Model(self._state_machine, x).predict(parameters)
                        for x in X]
         predictions = np.array([[probability
                                  for _, probability
@@ -227,58 +233,23 @@ class Hacrf(object):
 
 
 class _Model(object):
-    """ The actual model that implements the inference routines. """
     def __init__(self, state_machine, x, y=None):
         self.state_machine = state_machine
         self.states_to_classes = state_machine.states_to_classes
         self.x = x
-        self.sparse_x = 'uninitialized'
         self.y = y
-        self._lattice = self.state_machine.build_lattice(self.x)
 
-    def forward_backward(self, parameters):
-        """ Run the forward backward algorithm with the given parameters. """
-        # If the features are sparse, we can use an optimization.
-        # I'm not using scipy.sparse here because we want to avoid a scipy dependency and also scipy.sparse doesn't seem
-        # to handle arrays of shape higher than 2.
-        if isinstance(self.sparse_x, str) and self.sparse_x == 'uninitialized':
-            if (self.x == 0).sum() * 1.0 / self.x.size > 0.6:
-                self.sparse_x = self._construct_sparse_features(self.x)
-            else:
-                self.sparse_x = 'not sparse'
-
-        I, J, K = self.x.shape
-        if not isinstance(self.sparse_x, str):
-            C = self.sparse_x[0].shape[2]
-            S, _ = parameters.shape
-            x_dot_parameters = np.zeros((I, J, S))
-            sparse_multiply(x_dot_parameters, self.sparse_x[0], self.sparse_x[1], parameters.T, I, J, K, C, S)
+        if (self.x == 0).sum() * 1.0 / self.x.size > 0.6:
+            self.sparse_x = self._construct_sparse_features(self.x)
+            self.forward_backward = self.sparse_forward_backward
         else:
-            x_dot_parameters = np.dot(self.x, parameters.T)  # Pre-compute the dot product
-        alpha = self._forward(x_dot_parameters)
-        beta = self._backward(x_dot_parameters)
-        classes_to_ints = {k: i for i, k in enumerate(set(self.states_to_classes.values()))}
-        states_to_classes = np.array([classes_to_ints[self.states_to_classes[state]]
-                                      for state in range(max(self.states_to_classes.keys()) + 1)], dtype='int64')
-        if not isinstance(self.sparse_x, str):
-            ll, deriv = gradient_sparse(alpha, beta, parameters, states_to_classes,
-                                        self.sparse_x[0], self.sparse_x[1], classes_to_ints[self.y],
-                                        I, J, self.sparse_x[0].shape[2])
-        else:
-            ll, deriv = gradient(alpha, beta, parameters, states_to_classes,
-                                 self.x, classes_to_ints[self.y], I, J, K)
-        return ll, deriv
+            self.forward_backward = self.dense_forward_backward
 
-    def predict(self, parameters, viterbi):
+    def predict(self, parameters):
         """ Run forward algorithm to find the predicted distribution over classes. """
         x_dot_parameters = np.einsum('ijk,kl->ijl', self.x, parameters)
 
-        if not viterbi:
-            alpha = forward_predict(self._lattice, x_dot_parameters,
-                                    self.state_machine.n_states)
-        else:
-            alpha = forward_max_predict(self._lattice, x_dot_parameters,
-                                        self.state_machine.n_states)
+        alpha = self._forward_predict(x_dot_parameters)
 
         I, J, _ = self.x.shape
 
@@ -287,10 +258,81 @@ class _Model(object):
 
         for state, predicted_class in self.states_to_classes.items():
             weight = alpha[I - 1, J - 1, state]
-            class_Z[self.states_to_classes[state]] = weight
+            class_Z[predicted_class] = weight
             Z = np.logaddexp(Z, weight)
 
-        return {label: np.exp(class_z - Z) for label, class_z in class_Z.items()}
+        return {label: np.exp(class_z - Z)
+                for label, class_z
+                in class_Z.items()}
+
+    def dense_forward_backward(self, parameters):
+        """ Run the forward backward algorithm with the given parameters. """
+
+        I, J, K = self.x.shape
+        x_dot_parameters = np.dot(self.x,
+                                  parameters.T)  
+
+        alpha = self._forward(x_dot_parameters)
+        beta = self._backward(x_dot_parameters)
+        classes_to_ints = {k: i
+                           for i, k
+                           in enumerate(set(self.states_to_classes.values()))}
+        states_to_classes = np.array([classes_to_ints[self.states_to_classes[state]]
+                                      for state
+                                      in range(max(self.states_to_classes.keys()) + 1)],
+                                     dtype='int64')
+
+        ll, deriv = gradient(alpha, beta, parameters, states_to_classes,
+                             self.x, classes_to_ints[self.y], I, J, K)
+        return ll, deriv
+    
+
+    def sparse_forward_backward(self, parameters):
+        """ Run the forward backward algorithm with the given parameters. """
+        I, J, K = self.x.shape
+        C = self.sparse_x[0].shape[2]
+        S, _ = parameters.shape
+        x_dot_parameters = np.zeros((I, J, S))
+        sparse_multiply(x_dot_parameters,
+                        self.sparse_x[0],
+                        self.sparse_x[1],
+                        parameters.T,
+                        I, J, K, C, S)
+
+        alpha = self._forward(x_dot_parameters)
+        beta = self._backward(x_dot_parameters)
+        classes_to_ints = {k: i
+                           for i, k
+                           in enumerate(set(self.states_to_classes.values()))}
+        states_to_classes = np.array([classes_to_ints[self.states_to_classes[state]]
+                                      for state
+                                      in range(max(self.states_to_classes.keys()) + 1)],
+                                     dtype='int64')
+        ll, deriv = gradient_sparse(alpha, beta,
+                                    parameters,
+                                    states_to_classes,
+                                    self.sparse_x[0],
+                                    self.sparse_x[1],
+                                    classes_to_ints[self.y],
+                                    I, J,
+                                    self.sparse_x[0].shape[2])
+        return ll, deriv
+
+
+    def _construct_sparse_features(self, x):
+        """ Helper to construct a sparse representation of the features. """
+        I, J, K = x.shape
+        new_array_height = (x != 0).sum(axis=2).max()
+        index_array = -np.ones((I, J, new_array_height), dtype='int64')
+        value_array = -np.ones((I, J, new_array_height), dtype='float64')
+        populate_sparse_features(x, index_array, value_array, I, J, K)
+        return index_array, value_array
+    
+        
+class _GeneralModel(_Model):
+    def __init__(self, state_machine, x, y=None):
+        super(_GeneralModel, self).__init__(state_machine, x, y)
+        self._lattice = self.state_machine.build_lattice(self.x)
 
     def _forward(self, x_dot_parameters):
         """ Helper to calculate the forward weights.  """
@@ -303,11 +345,22 @@ class _Model(object):
         return backward(self._lattice, x_dot_parameters, I, J,
                         self.state_machine.n_states)
 
-    def _construct_sparse_features(self, x):
-        """ Helper to construct a sparse representation of the features. """
-        I, J, K = x.shape
-        new_array_height = (x != 0).sum(axis=2).max()
-        index_array = -np.ones((I, J, new_array_height), dtype='int64')
-        value_array = -np.ones((I, J, new_array_height), dtype='float64')
-        populate_sparse_features(x, index_array, value_array, I, J, K)
-        return index_array, value_array
+    def _forward_predict(self, x_dot_parameters):
+        return forward_predict(self._lattice, x_dot_parameters,
+                               self.state_machine.n_states)
+        
+
+class _AdjacentModel(_Model):
+    def _forward(self, x_dot_parameters) :
+        return adjacent.forward(x_dot_parameters,
+                                self.state_machine.n_states)
+
+    def _backward(self, x_dot_parameters) :
+        return adjacent.backward(x_dot_parameters,
+                                 self.state_machine.n_states)
+
+    def _forward_predict(self, x_dot_parameters):
+        return adjacent.forward_predict(x_dot_parameters,
+                                        self.state_machine.n_states)
+
+    

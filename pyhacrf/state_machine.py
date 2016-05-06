@@ -86,7 +86,6 @@ class GeneralStateMachine(object):
         lattice = [edge for edge in reversed_list if len(edge) > 3]
         return np.array(lattice, dtype='int64')
 
-
 class DefaultStateMachine(object):
     """ State machine which, together with two input sequences, is used to build the lattice.
 
@@ -98,122 +97,11 @@ class DefaultStateMachine(object):
     classes : list
         The set of labels.
     """
-    BASE_LENGTH = 60
-
-    def __init__(self, classes):
-        n_classes = len(classes)
-        deltas = ((1, 1),  # Match
-                  (0, 1),  # Insertion
-                  (1, 0))  # Deletion
-        self._start_states = [i for i in range(n_classes)]
-        self._transitions = [(i, i, delta)
-                             for delta in deltas
-                             for i in range(n_classes)]
-        self._base_shape = (self.BASE_LENGTH, self.BASE_LENGTH)
-        self.states_to_classes = {i: c for i, c in enumerate(classes)}
-        self.n_transitions = len(self._transitions)
+    def __init__(self, classes) :
         self.n_states = len(classes)
-        self._base_lattice = self._independent_lattice(self._base_shape)
-
-        self._lattice_limits = self._lattice_ends()
-
-    def _subset_independent_lattice(self, shape):
-        I, J = shape
-
-        if I < self.BASE_LENGTH and J < self.BASE_LENGTH:
-            lattice = self._base_lattice.take(
-                self._lattice_limits[I,J],
-                axis=0)
-                
-        elif I < self.BASE_LENGTH:
-            lattice = self._base_lattice.take(
-                self._lattice_limits[I, None],
-                axis=0)
-            lattice = self._independent_lattice((I, J), lattice)
-        elif J < self.BASE_LENGTH:
-            lattice = self._base_lattice.take(
-                self._lattice_limits[None, J],
-                axis=0)
-            lattice = self._independent_lattice((I, J), lattice)
-        else:
-            lattice = self._independent_lattice((I, J), self._base_lattice)
-
-        return lattice
-
-    def _independent_lattice(self, shape, lattice=None):
-        """ Helper to construct the list of nodes and edges. """
-        I, J = shape
-
-        if lattice is not None:
-            end_I = min(I, max(lattice[..., 3])) - 1
-            end_J = min(J, max(lattice[..., 4])) - 1
-            unvisited_nodes = deque([(i, j, s)
-                                     for i in range(end_I)
-                                     for j in range(end_J)
-                                     for s in self._start_states])
-            lattice = lattice.tolist()
-        else:
-            lattice = []
-            unvisited_nodes = deque([(0, 0, s) for s in self._start_states])
-        lattice += _grow_independent_lattice(self._transitions, 
-                                             self.n_states, (I, J), 
-                                             unvisited_nodes)
-        lattice = np.array(sorted(lattice), dtype='int64')
-        return lattice
-
-    def build_lattice(self, x):
-        """ Construct the list of nodes and edges for input features. """
-        I, J, _ = x.shape
-        lattice = self._subset_independent_lattice((I, J))
-        return lattice
-
-    def _lattice_ends(self) :
-
-        lattice_limits = {}
-
-        lengths = np.arange(self.BASE_LENGTH)
-        lengths.reshape(1, -1)
-
-        I = self._base_lattice[..., 3:4] < lengths
-        for i in range(self.BASE_LENGTH) :
-            lattice_limits[i, None] = I[..., i].nonzero()[0]
-
-        J = self._base_lattice[..., 4:5] < lengths
-        for j in range(self.BASE_LENGTH) :
-            lattice_limits[None, j] = J[..., j].nonzero()[0]
-
-        IJ = np.expand_dims(I, axis=0).T & J
-
-        for i in range(self.BASE_LENGTH) :
-            for j in range(self.BASE_LENGTH) :
-                lattice_limits[i,j] = IJ[i, ..., j].nonzero()[0]
-
-        return lattice_limits
-
-
-
-def _grow_independent_lattice(transitions, n_states, shape, unvisited_nodes):
-    I, J = shape
-    visited_nodes = set()
-    lattice = []
-
-    transitions_d = defaultdict(list)
-    for transition_index, (s0, s1, delta) in enumerate(transitions):
-        if not callable(delta):
-            di, dj = delta
-            transitions_d[s0].append((s1, di, dj,
-                                      transition_index + n_states))
-
-    while unvisited_nodes:
-        i, j, s0 = unvisited_nodes.popleft()
-        for s1, di, dj, edge_parameter_index in transitions_d[s0]:
-            if i + di < I and j + dj < J:
-                dest_node = (i + di, j + dj, s1)
-                edge = (i, j, s0) + dest_node + (edge_parameter_index,)
-                lattice.append(list(edge))
-                if dest_node not in visited_nodes:
-                    unvisited_nodes.append(dest_node)
-                    visited_nodes.add(dest_node)
-
-    return lattice
-
+        self.classes = classes
+        self.states_to_classes = {i: c
+                                  for i, c
+                                  in enumerate(classes)}
+        self.n_transitions = 3 * len(classes)
+        

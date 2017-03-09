@@ -1,16 +1,27 @@
 from setuptools import setup, Extension
 from codecs import open
 from os import path
-
+import sys
 
 # from Michael Hoffman's http://www.ebi.ac.uk/~hoffman/software/sunflower/
 class NumpyExtension(Extension):
 
+    # from https://github.com/REVLWorld/fastcluster/commit/101e21d55bbc4f2bb1e715872c4fd998a8061b75
+    # don't import numpy if any special command was called (e.g. egg_info)
+    def is_special_command(self):
+        special_list = ('--help-commands',
+                        'egg_info',
+                        '--version',
+                        'clean')
+        return ('--help' in sys.argv[1:] or
+                sys.argv[1] in special_list)
+
     def __init__(self, *args, **kwargs):
-        from numpy import get_include
-        from numpy.distutils.misc_util import get_info
-        kwargs.update(get_info('npymath'))
-        kwargs['include_dirs'] += [get_include()]
+        if len(sys.argv) < 2 or not self.is_special_command():        
+            from numpy import get_include
+            from numpy.distutils.misc_util import get_info
+            kwargs.update(get_info('npymath'))
+            kwargs['include_dirs'] += [get_include()]
 
         Extension.__init__(self, *args, **kwargs)
 

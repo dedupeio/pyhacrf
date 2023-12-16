@@ -1,5 +1,6 @@
-from os.path import join, abspath
+from os.path import abspath, join
 
+from Cython.Build import cythonize
 import numpy
 from setuptools import Extension, setup
 
@@ -8,53 +9,28 @@ inc_path = numpy.get_include()
 # Add path for npymath libraries:
 lib_path = [abspath(join(numpy.get_include(), "..", "lib"))]
 
-try:
-    from Cython.Build import cythonize
 
-    use_cython = True
-except ImportError:
-    use_cython = False
-
-if use_cython:
-    ext_modules = cythonize(
-        [
-            Extension(
-                "pyhacrf.algorithms",
-                ["pyhacrf/algorithms.pyx"],
-                extra_compile_args=["-ffast-math", "-O4"],
-                include_dirs=[inc_path],
-                library_dirs=lib_path,
-                libraries=["npymath"],
-                define_macros=defs,
-            ),
-            Extension(
-                "pyhacrf.adjacent",
-                ["pyhacrf/adjacent.pyx"],
-                include_dirs=[numpy.get_include()],
-                extra_link_args=["-lm"],
-                extra_compile_args=["-ffast-math", "-O4"],
-            ),
-        ]
-    )
-else:
-    ext_modules = [
+ext_modules = cythonize(
+    [
         Extension(
             "pyhacrf.algorithms",
-            ["pyhacrf/algorithms.c"],
+            ["pyhacrf/algorithms.pyx"],
             extra_compile_args=["-ffast-math", "-O4"],
             include_dirs=[inc_path],
             library_dirs=lib_path,
             libraries=["npymath"],
+            extra_link_args=["-lm"],
             define_macros=defs,
         ),
         Extension(
             "pyhacrf.adjacent",
-            ["pyhacrf/adjacent.c"],
-            extra_link_args=["-lm"],
+            ["pyhacrf/adjacent.pyx"],
             include_dirs=[numpy.get_include()],
+            extra_link_args=["-lm"],
             extra_compile_args=["-ffast-math", "-O4"],
         ),
     ]
+)
 
 
 def readme():

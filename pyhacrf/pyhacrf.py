@@ -4,6 +4,7 @@
 """ Implements a Hidden Alignment Conditional Random Field (HACRF). """
 
 from __future__ import absolute_import
+from multiprocessing import Pool
 import numpy as np
 import lbfgs
 from .algorithms import forward, backward
@@ -11,6 +12,19 @@ from .algorithms import forward_predict, forward_max_predict
 from .algorithms import gradient, gradient_sparse, populate_sparse_features, sparse_multiply
 from . import adjacent
 from .state_machine import DefaultStateMachine
+
+
+class ModelStepRunner:
+    def __init__(self, model, params):
+        self.model = model
+        self.params = params
+
+    def forward_backward(self):
+        return self.model.forward_backward(self.params)
+
+
+def f(model):
+    return model.forward_backward()
 
 
 class Hacrf(object):
@@ -104,9 +118,11 @@ class Hacrf(object):
         def _objective(parameters):
             gradient = np.zeros(self.parameters.shape)
             ll = 0.0  # Log likelihood
-            # TODO: Embarrassingly parallel
-            for model in models:
-                dll, dgradient = model.forward_backward(parameters.reshape(self.parameters.shape))
+            params = parameters.reshape(self.parameters.shape)
+            model_procs = [ModelStepRunner(model, params) for model in models]
+            with Pool() as p:
+                results = p.map(f, model_procs)
+            for dll, dgradient in results:
                 ll += dll
                 gradient += dgradient
 
@@ -342,7 +358,6 @@ class _AdjacentModel(_Model):
                                 self.state_machine.n_states)
 
     def _backward(self, x_dot_parameters) :
-        print(x_dot_parameters)
         return adjacent.backward(x_dot_parameters,
                                  self.state_machine.n_states)
 

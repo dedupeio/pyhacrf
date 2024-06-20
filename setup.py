@@ -40,7 +40,7 @@ def readme():
 
 setup(
     name="pyhacrf-datamade",
-    version="0.2.7",
+    version="0.2.8",
     packages=["pyhacrf"],
     install_requires=[
         "numpy>=1.14.1; python_version<'3.6'",

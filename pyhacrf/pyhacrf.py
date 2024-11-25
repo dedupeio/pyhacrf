@@ -241,8 +241,6 @@ class _Model(object):
         self.x = x
         self.y = y
 
-        self.forward_backward = self.dense_forward_backward
-
     def predict(self, parameters):
         """ Run forward algorithm to find the predicted distribution over classes. """
         x_dot_parameters = np.matmul(self.x, parameters)
@@ -319,6 +317,8 @@ class _GeneralModel(_Model):
     def __init__(self, state_machine, x, y=None):
         super(_GeneralModel, self).__init__(state_machine, x, y)
         self._lattice = self.state_machine.build_lattice(self.x)
+        self.forward_backward = self.dense_forward_backward
+
 
     def _forward(self, x_dot_parameters):
         """ Helper to calculate the forward weights.  """
@@ -342,7 +342,6 @@ class _AdjacentModel(_Model):
                                 self.state_machine.n_states)
 
     def _backward(self, x_dot_parameters) :
-        print(x_dot_parameters)
         return adjacent.backward(x_dot_parameters,
                                  self.state_machine.n_states)
 
@@ -350,4 +349,36 @@ class _AdjacentModel(_Model):
         return adjacent.forward_predict(x_dot_parameters,
                                         self.state_machine.n_states)
 
+    def forward_backward(self, parameters):
+        """ Run the forward backward algorithm with the given parameters. """
+
+        x_dot_parameters = np.einsum('ijk,lk->ijl', self.x, parameters)
+
+        alpha = self._forward(x_dot_parameters)
+        beta = self._backward(x_dot_parameters)
+
+        ll, deriv = self._gradient(alpha,
+                                   beta,
+                                   self.x,
+                                   self.state_machine.classes.index(self.y),
+                                   self.state_machine.n_states)
+        return ll, deriv
+    
+
+    def _gradient(self, alpha, beta, x, y, S):
+        """Helper to calculate the marginals and from that the gradient given
+           the forward and backward weights.
+        """
+
+        alphabeta = alpha + beta
+
+        Z = np.logaddexp.reduce(alpha[-1, -1, :S])
+        Z_y = alpha[-1, -1, y]
+        
+        ab = -np.exp(alphabeta - Z)
+        ab[:, :, y::S] += np.exp(alphabeta[:, :, y::S] - Z_y)
+
+        derivative = np.einsum('ijk,ijl->kl', ab, x)
+                                                      
+        return Z_y - Z, derivative
     

@@ -13,12 +13,12 @@ cdef extern from "log1p.h" nogil:
 cdef np.float64_t LOG_2 = 0.6931471805599453
 cdef np.float64_t LOG_3 = 1.0986122886681098
 
-cpdef dict forward(np.ndarray[np.float64_t, ndim=3] x_dot_parameters, int S):
+cpdef np.ndarray[np.float64_t, ndim=3] forward(np.float64_t[:, :, :] x_dot_parameters, int S):
     """ Helper to calculate the forward weights.  """
-    cdef dict alpha = {}
+    cdef np.ndarray[np.float64_t, ndim=3] alpha = np.full_like(x_dot_parameters, -np.inf)
 
     cdef int I, J
-    I, J = x_dot_parameters.shape[0], x_dot_parameters.shape[1]
+    I, J = alpha.shape[0], alpha.shape[1]
 
     # Fill in the edges of the state matrices
     #
@@ -40,13 +40,13 @@ cpdef dict forward(np.ndarray[np.float64_t, ndim=3] x_dot_parameters, int S):
                       x_dot_parameters[i, 0, insertion + s])
             alpha[i, 0, s] = x_dot_parameters[i, 0, s] + insert
 
-            alpha[i - 1, 0, s, i, 0, s, insertion + s] = insert
+            alpha[i, 0, insertion + s] = insert
         for j in range(1, J):
             delete = (alpha[0, j - 1, s] +
                       x_dot_parameters[0, j, deletion + s])
             alpha[0, j, s] = x_dot_parameters[0, j, s] + delete
 
-            alpha[0, j - 1, s, 0, j, s, deletion + s] = delete
+            alpha[0, j, deletion + s] = delete
         
         # Now fill in the middle of the matrix    
         for i in range(1, I):
@@ -60,18 +60,18 @@ cpdef dict forward(np.ndarray[np.float64_t, ndim=3] x_dot_parameters, int S):
                 alpha[i, j, s] = (x_dot_parameters[i, j, s] +
                                   logsumexp(insert, delete, match))
 
-                alpha[i - 1, j, s, i, j, s, insertion + s] = insert
-                alpha[i, j - 1, s, i, j, s, deletion + s] = delete
-                alpha[i - 1, j - 1, s, i, j, s, matching + s] = match
+                alpha[i, j, insertion + s] = insert
+                alpha[i, j, deletion + s] = delete
+                alpha[i, j, matching + s] = match
 
     return alpha
 
-cpdef dict backward(np.ndarray[np.float64_t, ndim=3] x_dot_parameters, int S):
+cpdef np.ndarray[np.float64_t, ndim=3] backward(np.ndarray[np.float64_t, ndim=3] x_dot_parameters, int S):
     """ Helper to calculate the forward weights.  """
-    cdef dict beta = {}
+    cdef np.ndarray[np.float64_t, ndim=3] beta = np.full_like(x_dot_parameters, -np.inf)
 
     cdef int I, J
-    I, J = x_dot_parameters.shape[0], x_dot_parameters.shape[1]
+    I, J = beta.shape[0], beta.shape[1]
 
     # Fill in the edges of the state matrices
     #
@@ -96,14 +96,14 @@ cpdef dict backward(np.ndarray[np.float64_t, ndim=3] x_dot_parameters, int S):
             beta[i, last_col, s] = (x_dot_parameters[i + 1, last_col, insertion + s]
                                     + insert)
 
-            beta[i, last_col, s, i + 1, last_col, s, insertion + s] = insert
+            beta[i + 1, last_col, insertion + s] = insert
         for j in range(last_col - 1, -1, -1):
             delete = (beta[last_row, j + 1, s] +
                       x_dot_parameters[last_row, j + 1, s])
             beta[last_row, j, s] = (x_dot_parameters[last_row, j + 1, deletion + s]
                                     + delete)
 
-            beta[last_row, j, s, last_row, j + 1, s, deletion + s] = delete
+            beta[last_row, j + 1, deletion + s] = delete
         
         # Now fill in the middle of the matrix    
         for i in range(last_row - 1, -1, -1):
@@ -115,9 +115,9 @@ cpdef dict backward(np.ndarray[np.float64_t, ndim=3] x_dot_parameters, int S):
                 match = (beta[i + 1, j + 1, s] +
                          x_dot_parameters[i + 1, j + 1, s])
 
-                beta[i, j, s, i + 1, j, s, insertion + s] = insert
-                beta[i, j, s, i, j + 1, s, deletion + s] = delete
-                beta[i, j, s, i + 1, j + 1, s, matching + s] = match
+                beta[i + 1, j, insertion + s] = insert
+                beta[i, j + 1, deletion + s] = delete
+                beta[i + 1, j + 1, matching + s] = match
 
                 insert += x_dot_parameters[i + 1, j, insertion + s]
                 delete += x_dot_parameters[i, j + 1, deletion + s]

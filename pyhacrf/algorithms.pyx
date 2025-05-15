@@ -4,7 +4,7 @@ import numpy as np
 cimport numpy as np
 from numpy import ndarray
 from numpy cimport ndarray
-from numpy.math cimport logaddexp, INFINITY as inf
+from libc.math cimport logaddexp, INFINITY as inf
 cdef extern from "math.h" nogil :
     np.float64_t exp(np.float64_t x)
 

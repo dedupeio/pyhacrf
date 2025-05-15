@@ -253,7 +253,7 @@ def gradient_sparse(dict alpha,
     for state, clas in enumerate(states_to_classes):
         weight = <np.float64_t> alpha[(I - 1, J - 1, state)]
         class_Z[clas] = weight
-        Z = logaddexp(Z, weight)
+        Z = np.logaddexp(Z, weight)
 
     cdef ndarray[np.float64_t, ndim=2] derivative = np.full_like(parameters, 0.0)
     cdef unsigned int i0, j0, s0, i1, j1, s1, edge_parameter_index

@@ -83,7 +83,7 @@ cpdef np.float64_t[::1] forward_predict(np.int64_t[:, ::1] lattice,
         edge_potential = (x_dot_parameters[i1, j1, edge_parameter_index]
                           + source_node_potential)
 
-        alpha[i1, j1, s1] = logaddexp(alpha[i1, j1, s1], edge_potential)
+        alpha[i1, j1, s1] = np.logaddexp(alpha[i1, j1, s1], edge_potential)
 
     cdef int I = alpha.shape[0] - 1
     cdef int J = alpha.shape[1] - 1
@@ -98,7 +98,7 @@ cpdef np.float64_t[::1] forward_predict(np.int64_t[:, ::1] lattice,
     cdef np.float64_t Z = -inf
 
     for s in range(S):
-        Z = logaddexp(Z, final_alphas[s])
+        Z = np.logaddexp(Z, final_alphas[s])
 
     for s in range(S):
         final_alphas[s] = exp(final_alphas[s] - Z)

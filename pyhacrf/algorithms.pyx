@@ -4,7 +4,7 @@ import numpy as np
 cimport numpy as np
 from numpy import ndarray
 from numpy cimport ndarray
-from numpy.math cimport logaddexp, INFINITY as inf
+from libc.math cimport INFINITY as inf
 cdef extern from "math.h" nogil :
     np.float64_t exp(np.float64_t x)
 
@@ -37,7 +37,7 @@ cpdef dict forward(np.ndarray[np.int64_t, ndim=2] lattice, np.ndarray[np.float64
         edge_potential = (x_dot_parameters[i1, j1, edge_parameter_index]
                           + <np.float64_t> alpha[(i0, j0, s0)])
         alpha[(i0, j0, s0, i1, j1, s1, edge_parameter_index)] = edge_potential
-        alpha[(i1, j1, s1)] = logaddexp(<np.float64_t> alpha.get((i1, j1, s1), -inf),
+        alpha[(i1, j1, s1)] = np.logaddexp(<np.float64_t> alpha.get((i1, j1, s1), -inf),
                                         edge_potential)
 
     I = x_dot_parameters.shape[0] - 1
@@ -83,7 +83,7 @@ cpdef np.float64_t[::1] forward_predict(np.int64_t[:, ::1] lattice,
         edge_potential = (x_dot_parameters[i1, j1, edge_parameter_index]
                           + source_node_potential)
 
-        alpha[i1, j1, s1] = logaddexp(alpha[i1, j1, s1], edge_potential)
+        alpha[i1, j1, s1] = np.logaddexp(alpha[i1, j1, s1], edge_potential)
 
     cdef int I = alpha.shape[0] - 1
     cdef int J = alpha.shape[1] - 1
@@ -98,7 +98,7 @@ cpdef np.float64_t[::1] forward_predict(np.int64_t[:, ::1] lattice,
     cdef np.float64_t Z = -inf
 
     for s in range(S):
-        Z = logaddexp(Z, final_alphas[s])
+        Z = np.logaddexp(Z, final_alphas[s])
 
     for s in range(S):
         final_alphas[s] = exp(final_alphas[s] - Z)
@@ -174,7 +174,7 @@ cpdef dict backward(ndarray[np.int64_t, ndim=2] lattice,
 
         edge_potential = <np.float64_t> beta[(i1, j1, s1)] + x_dot_parameters[i1, j1, s1]
         beta[(i0, j0, s0, i1, j1, s1, edge_parameter_index)] = edge_potential
-        beta[(i0, j0, s0)] = logaddexp(<np.float64_t> beta.get((i0, j0, s0), -inf),
+        beta[(i0, j0, s0)] = np.logaddexp(<np.float64_t> beta.get((i0, j0, s0), -inf),
                                        (edge_potential 
                                         + x_dot_parameters[i1, 
                                                            j1, 
@@ -199,7 +199,7 @@ def gradient(dict alpha,
     for state, clas in enumerate(states_to_classes):
         weight = <np.float64_t> alpha[(I - 1, J - 1, state)]
         class_Z[clas] = weight
-        Z = logaddexp(Z, weight)
+        Z = np.logaddexp(Z, weight)
 
     cdef ndarray[np.float64_t, ndim=2] derivative = np.full_like(parameters, 0.0)
     cdef unsigned int i0, j0, s0, i1, j1, s1, edge_parameter_index
@@ -253,7 +253,7 @@ def gradient_sparse(dict alpha,
     for state, clas in enumerate(states_to_classes):
         weight = <np.float64_t> alpha[(I - 1, J - 1, state)]
         class_Z[clas] = weight
-        Z = logaddexp(Z, weight)
+        Z = np.logaddexp(Z, weight)
 
     cdef ndarray[np.float64_t, ndim=2] derivative = np.full_like(parameters, 0.0)
     cdef unsigned int i0, j0, s0, i1, j1, s1, edge_parameter_index

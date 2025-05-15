@@ -5,7 +5,7 @@ import numpy as np
 cimport numpy as np
 from numpy import ndarray
 from numpy cimport ndarray
-from numpy.math cimport INFINITY as inf
+from libc.math cimport INFINITY as inf
 from libc.math cimport exp
 cdef extern from "log1p.h" nogil:
     np.float64_t log1p(np.float64_t x)

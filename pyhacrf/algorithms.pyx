@@ -174,7 +174,7 @@ cpdef dict backward(ndarray[np.int64_t, ndim=2] lattice,
 
         edge_potential = <np.float64_t> beta[(i1, j1, s1)] + x_dot_parameters[i1, j1, s1]
         beta[(i0, j0, s0, i1, j1, s1, edge_parameter_index)] = edge_potential
-        beta[(i0, j0, s0)] = logaddexp(<np.float64_t> beta.get((i0, j0, s0), -inf),
+        beta[(i0, j0, s0)] = np.logaddexp(<np.float64_t> beta.get((i0, j0, s0), -inf),
                                        (edge_potential 
                                         + x_dot_parameters[i1, 
                                                            j1, 
@@ -199,7 +199,7 @@ def gradient(dict alpha,
     for state, clas in enumerate(states_to_classes):
         weight = <np.float64_t> alpha[(I - 1, J - 1, state)]
         class_Z[clas] = weight
-        Z = logaddexp(Z, weight)
+        Z = np.logaddexp(Z, weight)
 
     cdef ndarray[np.float64_t, ndim=2] derivative = np.full_like(parameters, 0.0)
     cdef unsigned int i0, j0, s0, i1, j1, s1, edge_parameter_index

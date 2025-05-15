@@ -2,7 +2,7 @@
 
 import numpy as np
 cimport numpy as np
-from numpy import ndarray, logaddexp
+from numpy import ndarray
 from numpy cimport ndarray
 from libc.math cimport INFINITY as inf
 cdef extern from "math.h" nogil :
@@ -37,7 +37,7 @@ cpdef dict forward(np.ndarray[np.int64_t, ndim=2] lattice, np.ndarray[np.float64
         edge_potential = (x_dot_parameters[i1, j1, edge_parameter_index]
                           + <np.float64_t> alpha[(i0, j0, s0)])
         alpha[(i0, j0, s0, i1, j1, s1, edge_parameter_index)] = edge_potential
-        alpha[(i1, j1, s1)] = logaddexp(<np.float64_t> alpha.get((i1, j1, s1), -inf),
+        alpha[(i1, j1, s1)] = np.logaddexp(<np.float64_t> alpha.get((i1, j1, s1), -inf),
                                         edge_potential)
 
     I = x_dot_parameters.shape[0] - 1

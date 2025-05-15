@@ -2,8 +2,8 @@
 
 import numpy as np
 cimport numpy as np
-from numpy import ndarray
-from numpy cimport ndarray, logaddexp
+from numpy import ndarray, logaddexp
+from numpy cimport ndarray
 from libc.math cimport INFINITY as inf
 cdef extern from "math.h" nogil :
     np.float64_t exp(np.float64_t x)

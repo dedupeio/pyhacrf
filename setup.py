@@ -43,10 +43,7 @@ setup(
     version="0.2.8",
     packages=["pyhacrf"],
     install_requires=[
-        "numpy>=1.14.1; python_version<'3.6'",
-        "numpy>=1.15.0; python_version=='3.7'",
-        "numpy>=1.17.3; python_version=='3.8'",
-        "numpy; python_version>'3.8'",
+        "numpy",
         "PyLBFGS>=0.1.3",
     ],
     python_requires='>=3.9',

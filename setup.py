@@ -44,7 +44,7 @@ setup(
     packages=["pyhacrf"],
     install_requires=[
         "numpy",
-        "PyLBFGS>=0.1.3",
+        "PyLBFGS>=0.1.4",
     ],
     python_requires='>=3.9',
     ext_modules=ext_modules,

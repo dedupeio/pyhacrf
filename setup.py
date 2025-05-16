@@ -49,6 +49,7 @@ setup(
         "numpy; python_version>'3.8'",
         "PyLBFGS>=0.1.3",
     ],
+    python_requires='>3.8',
     ext_modules=ext_modules,
     url="https://github.com/datamade/pyhacrf",
     author="Dirko Coetsee",

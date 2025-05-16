@@ -47,7 +47,7 @@ jobs:
       env:
         CIBW_ARCHS_MACOS: x86_64 arm64 universal2
         CIBW_ARCHS_LINUX: auto aarch64
-        CIBW_SKIP: pp38-* pp37-* pp*-manylinux_i686 *-musllinux_* *s390x *ppc64le *36-win* pp310-win*
+        CIBW_SKIP: pp*-manylinux_i686 *-musllinux_* *s390x *ppc64le *36-win* pp310-win*
         CIBW_BUILD_VERBOSITY: 1
     - name: Build sdist
       run: |

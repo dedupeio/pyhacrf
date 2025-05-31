@@ -248,44 +248,52 @@ class TestAdjacentModel(unittest.TestCase):
                       [[0, 1],
                        [1, 0]]], dtype=np.float64)
         y = 'a'
-        expected_alpha = {
-            (0, 0, 0): np.exp(-7),
-            (0, 0, 0, 0, 1, 0, 4): np.exp(-7) * np.exp(1),
-            (0, 0, 0, 1, 0, 0, 6): np.exp(-7) * np.exp(5),
-            (0, 0, 0, 1, 1, 0, 2): np.exp(-7) * np.exp(-4),
-            (0, 0, 1): np.exp(-5),
-            (0, 0, 1, 0, 1, 1, 5): np.exp(-5) * np.exp(7),
-            (0, 0, 1, 1, 0, 1, 7): np.exp(-5) * np.exp(7),
-            (0, 0, 1, 1, 1, 1, 3): np.exp(-5) * np.exp(-2),
-            (0, 1, 0): np.exp(-7) * np.exp(1) * np.exp(-23),
-            (0, 1, 0, 1, 1, 0, 6): np.exp(-7) * np.exp(1) * np.exp(-23) * np.exp(4),
-            (0, 1, 1): np.exp(-5) * np.exp(7) * np.exp(-17),
-            (0, 1, 1, 1, 1, 1, 7): np.exp(-5) * np.exp(7) * np.exp(-17) * np.exp(6),
-            (1, 0, 0): np.exp(-7) * np.exp(5) * np.exp(-7),
-            (1, 0, 0, 1, 1, 0, 4): np.exp(-7) * np.exp(5) * np.exp(-7) * np.exp(0),
-            (1, 0, 1): np.exp(-5) * np.exp(7) * np.exp(-5),
-            (1, 0, 1, 1, 1, 1, 5): np.exp(-5) * np.exp(7) * np.exp(-5) * np.exp(2),
-            (1, 1, 0): (np.exp(-11) + np.exp(-25) + np.exp(-9)) * np.exp(-8),
-            (1, 1, 1): (np.exp(-1) + np.exp(-9) + np.exp(-7)) * np.exp(-6)
-        }
-        expected_alpha = {k: np.emath.log(v) for k, v in expected_alpha.items()}
-
+        # expected_alpha = {
+        #     (0, 0, 0): np.exp(-7),
+        #     (0, 0, 0, 1, 1, 0, 2): np.exp(-7) * np.exp(-4),
+        #     (0, 0, 0, 0, 1, 0, 4): np.exp(-7) * np.exp(1),
+        #     (0, 0, 0, 1, 0, 0, 6): np.exp(-7) * np.exp(5),
+        #     (0, 0, 1): np.exp(-5),
+        #     (0, 0, 1, 1, 1, 1, 3): np.exp(-5) * np.exp(-2),
+        #     (0, 0, 1, 0, 1, 1, 5): np.exp(-5) * np.exp(7),
+        #     (0, 0, 1, 1, 0, 1, 7): np.exp(-5) * np.exp(7),
+        #     (0, 1, 0): np.exp(-7) * np.exp(1) * np.exp(-23),
+        #     (0, 1, 0, 1, 1, 0, 6): np.exp(-7) * np.exp(1) * np.exp(-23) * np.exp(4),
+        #     (0, 1, 1): np.exp(-5) * np.exp(7) * np.exp(-17),
+        #     (0, 1, 1, 1, 1, 1, 7): np.exp(-5) * np.exp(7) * np.exp(-17) * np.exp(6),
+        #     (1, 0, 0): np.exp(-7) * np.exp(5) * np.exp(-7),
+        #     (1, 0, 0, 1, 1, 0, 4): np.exp(-7) * np.exp(5) * np.exp(-7) * np.exp(0),
+        #     (1, 0, 1): np.exp(-5) * np.exp(7) * np.exp(-5),
+        #     (1, 0, 1, 1, 1, 1, 5): np.exp(-5) * np.exp(7) * np.exp(-5) * np.exp(2),
+        #     (1, 1, 0): (np.exp(-11) + np.exp(-25) + np.exp(-9)) * np.exp(-8),
+        #     (1, 1, 1): (np.exp(-1) + np.exp(-9) + np.exp(-7)) * np.exp(-6)
+        # }
+        expected_alpha = np.array([[[     -7,      -9],
+                                    [    -29,     -16.87307189]],
+                                   [[     -5,      -3],
+                                    [    -15,      -6.99718973]],
+                                   [[-np.inf, -np.inf],
+                                    [-np.inf,     -11]],
+                                   [[-np.inf, -np.inf],
+                                    [-np.inf,      -7]],
+                                   [[-np.inf, -np.inf],
+                                    [     -6,      -9]],
+                                   [[-np.inf, -np.inf],
+                                    [      2,      -1]],
+                                   [[-np.inf,      -2],
+                                    [-np.inf,    -25]],
+                                   [[-np.inf,      2],
+                                    [-np.inf,     -9]]]).T
+        expected_alpha = expected_alpha
+                           
         state_machine = DefaultStateMachine(classes)
         test_model = _AdjacentModel(state_machine, x, y)
         x_dot_parameters = np.dot(x, parameters.T)  # Pre-compute the dot product
         actual_alpha = test_model._forward(x_dot_parameters)
+        actual_alpha = np.asarray(actual_alpha)
 
         self.assertEqual(len(actual_alpha), len(expected_alpha))
-        for key in sorted(expected_alpha.keys()):
-            try:
-                expected_alpha[key], actual_alpha[key]
-            except:
-                print(key)
-                print('expected', sorted(expected_alpha))
-                print('actual', sorted(actual_alpha))
-                raise
-
-            self.assertAlmostEqual(actual_alpha[key], expected_alpha[key])
+        assert_array_almost_equal(actual_alpha, expected_alpha)
 
     def test_backward_connected(self):
         parameters = np.array(range(-4, 4), dtype=np.float64).reshape((4, 2))
@@ -299,16 +307,24 @@ class TestAdjacentModel(unittest.TestCase):
                       [[0, 1],
                        [1, 0]]], dtype=np.float64)
         y = 'a'
-        expected_beta = {
-            (0, 0, 0): -3.872776558098594,
-            (0, 0, 0, 0, 1, 0, 2): -13,
-            (0, 0, 0, 1, 0, 0, 3): -7,
-            (0, 0, 0, 1, 1, 0, 1): -4,
-            (0, 1, 0): -2.0,
-            (0, 1, 0, 1, 1, 0, 3): -4.0,
-            (1, 0, 0): -4.0,
-            (1, 0, 0, 1, 1, 0, 2): -4.0,
-            (1, 1, 0): 0.0}
+        # expected_beta = {
+        #     (0, 0, 0): -3.872776558098594,
+        #     (0, 0, 0, 0, 1, 0, 2): -13,
+        #     (0, 0, 0, 1, 0, 0, 3): -7,
+        #     (0, 0, 0, 1, 1, 0, 1): -4,
+        #     (0, 1, 0): -2.0,
+        #     (0, 1, 0, 1, 1, 0, 3): -4.0,
+        #     (1, 0, 0): -4.0,
+        #     (1, 0, 0, 1, 1, 0, 2): -4.0,
+        #     (1, 1, 0): 0.0}
+        expected_beta = np.array([[[      -3.872776558098594, -4],
+                                   [      -2,       0]],
+                                  [[ -np.inf, -np.inf],
+                                   [ -np.inf,      -4]],
+                                  [[ -np.inf, -np.inf],
+                                   [     -13,      -4]],
+                                  [[ -np.inf,      -7],
+                                   [ -np.inf,      -4]]]).T
 
 
         state_machine = DefaultStateMachine(['a'])
@@ -316,13 +332,8 @@ class TestAdjacentModel(unittest.TestCase):
 
         x_dot_parameters = np.dot(x, parameters.T)  # Pre-compute the dot product
         actual_beta = test_model._backward(x_dot_parameters)
-        print(sorted(actual_beta.items()))
-        print(sorted(expected_beta.items()))
 
-        self.assertEqual(len(actual_beta), len(expected_beta))
-        for key in sorted(expected_beta.keys(), reverse=True):
-            print(key, expected_beta[key], actual_beta[key])
-            self.assertAlmostEqual(actual_beta[key], expected_beta[key])
+        assert_array_almost_equal(actual_beta, expected_beta)
 
     def test_forward_backward_same_partition_value(self):
         classes = ['a', 'b']
@@ -385,14 +396,12 @@ class TestAdjacentModel(unittest.TestCase):
                 dg[s, d] = delta
                 y0, _ = test_model.forward_backward(parameters)
                 y1, _ = test_model.forward_backward(parameters + dg)
-                print(s, d, y0, y1)
                 expected_dll[s, d] = (y1 - y0) / delta
 
         actual_ll, actual_dll = test_model.forward_backward(parameters)
-
-        print(expected_ll, actual_ll)
         print(expected_dll)
         print(actual_dll)
+
         self.assertAlmostEqual(actual_ll, expected_ll)
         assert_array_almost_equal(actual_dll, expected_dll, decimal=TEST_PRECISION)
 
